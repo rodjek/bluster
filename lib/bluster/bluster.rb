@@ -28,6 +28,8 @@ class Bluster
   
   # The configuration details of a contact.
   #
+  # contact - The String name of the contact to lookup.
+  #
   # Returns a Hash of Strings.
   def get_contact(contact)
     ensure_cache_up_to_date
@@ -36,6 +38,33 @@ class Bluster
     data = {}
     keys.each { |key|
       short_key = key.split(":")[4] 
+      data[short_key] = self.redis.get("#{namespace}:#{short_key}")
+    }
+    data
+  end
+  
+  # The list of command object names.
+  #
+  # Returns an Array of String command names.
+  def commands
+    ensure_cache_up_to_date
+    commands = self.redis.keys("bluster:objects:command:*")
+    commands.map! { |r| r.split(":")[3] }
+    commands.uniq
+  end
+  
+  # The configuration details of a command.
+  #
+  # command - The String name of the command to lookup.
+  #
+  # Returns a Hash of Strings.
+  def get_command(command)
+    ensure_cache_up_to_date
+    namespace = "bluster:objects:command:#{command}"
+    keys = self.redis.keys("#{namespace}:*")
+    data = {}
+    keys.each { |key|
+      short_key = key.split(":")[4]
       data[short_key] = self.redis.get("#{namespace}:#{short_key}")
     }
     data
@@ -99,7 +128,7 @@ class Bluster
             objects[type] << data
           else
             chunks = line.squeeze(' ').split(' ')
-            data[chunks.first] = chunks.last
+            data[chunks.first] = chunks[1..-1].join(' ')
           end
         end
       end
@@ -109,6 +138,13 @@ class Bluster
       namespace = "bluster:objects:contact:#{contact['contact_name']}"
       contact.keys.each { |key|
         self.redis.set("#{namespace}:#{key}", contact[key]) if key != "contact_name"
+      }
+    }
+    
+    objects["command"].each { |command|
+      namespace = "bluster:objects:command:#{command['command_name']}"
+      command.keys.each { |key|
+        self.redis.set("#{namespace}:#{key}", command[key]) if key != "command_name"
       }
     }
     
